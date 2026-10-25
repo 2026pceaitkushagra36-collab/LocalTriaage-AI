@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ErrorTriage Local</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
+    <div class="max-w-3xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-emerald-400">ErrorTriage Local</h1>
+            <p class="text-gray-400 text-sm mt-1">Offline Error Log Triage Agent powered by Qwen via Ollama</p>
+        </header>
+
+        <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 mb-6">
+            <label class="block text-sm font-semibold mb-2 text-gray-300">Paste your raw terminal error log:</label>
+            <textarea id="errorLog" rows="6" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 font-mono" placeholder="Paste error here..."></textarea>
+            
+            <button onclick="triageError()" id="submitBtn" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition duration-200 shadow-md">
+                Triage Error Locally
+            </button>
+        </div>
+
+        <div id="outputContainer" class="hidden bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
+            <h2 class="text-lg font-bold text-emerald-400 mb-3">Analysis & Local Patch</h2>
+            <div id="resultText" class="text-sm text-gray-300 whitespace-pre-wrap font-mono bg-gray-900 p-4 rounded-lg border border-gray-700"></div>
+        </div>
+    </div>
+
+    <script>
+        async function triageError() {
+            const logInput = document.getElementById('errorLog').value.trim();
+            const outputContainer = document.getElementById('outputContainer');
+            const resultText = document.getElementById('resultText');
+            const submitBtn = document.getElementById('submitBtn');
+
+            if (!logInput) {
+                alert('Please paste an error log first!');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Analyzing locally...';
+            outputContainer.classList.remove('hidden');
+            resultText.textContent = 'Communicating with local Qwen instance...';
+
+            try {
+                const response = await fetch('http://localhost:11434/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'qwen3.8:27b',
+                        messages: [
+                            { role: 'system', content: 'You are an expert offline debugging agent. Break down the error into: 1) Root Cause, 2) Affected File/Line, and 3) Local Patch.' },
+                            { role: 'user', content: logInput }
+                        ],
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) throw new Error('Local server error.');
+                const data = await response.json();
+                resultText.textContent = data.message.content;
+            } catch (error) {
+                resultText.textContent = 'Error: Could not reach Ollama at http://localhost:11434. Make sure Ollama is running in your taskbar!\n\nDetails: ' + error.message;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Triage Error Locally';
+            }
+        }
+    </script>
+</body>
+</html>
